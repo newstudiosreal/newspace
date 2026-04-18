@@ -4,11 +4,12 @@ import { TrendingUp, Hash } from 'lucide-react'
 import { formatCount } from '@/lib/utils'
 import FollowButton from '@/components/ui/FollowButton'
 import Image from 'next/image'
+import type { Hashtag, Profile } from '@/types/database'
 
 export default async function RightPanel({ currentUserId }: { currentUserId: string }) {
   const supabase = createClient()
 
-  const [{ data: trending }, { data: suggested }] = await Promise.all([
+  const [{ data: trendingRaw }, { data: suggestedRaw }] = await Promise.all([
     supabase
       .from('hashtags')
       .select('*')
@@ -21,6 +22,9 @@ export default async function RightPanel({ currentUserId }: { currentUserId: str
       .order('followers_count', { ascending: false })
       .limit(4),
   ])
+
+  const trending = (trendingRaw as unknown as Hashtag[]) || []
+  const suggested = (suggestedRaw as unknown as Profile[]) || []
 
   return (
     <div className="sticky top-0 h-screen overflow-y-auto py-4 px-4 space-y-4">
@@ -44,7 +48,7 @@ export default async function RightPanel({ currentUserId }: { currentUserId: str
           <h3 className="font-display font-bold text-sm">Trending</h3>
         </div>
         <div className="space-y-3">
-          {trending?.map((tag, i) => (
+          {trending.map((tag, i) => (
             <Link
               key={tag.id}
               href={`/explore?q=%23${tag.tag}`}
@@ -60,7 +64,7 @@ export default async function RightPanel({ currentUserId }: { currentUserId: str
               <TrendingUp size={14} className="text-text-muted group-hover:text-accent-yellow transition-colors" />
             </Link>
           ))}
-          {(!trending || trending.length === 0) && (
+          {trending.length === 0 && (
             <p className="text-text-muted text-sm text-center py-2">Nessun trend ancora</p>
           )}
         </div>
@@ -73,7 +77,7 @@ export default async function RightPanel({ currentUserId }: { currentUserId: str
       <div className="card p-4">
         <h3 className="font-display font-bold text-sm mb-4">Chi seguire</h3>
         <div className="space-y-3">
-          {suggested?.map(user => (
+          {suggested.map(user => (
             <div key={user.id} className="flex items-center gap-3">
               <Link href={`/profile/${user.username}`}>
                 <div className="w-9 h-9 rounded-full overflow-hidden bg-bg-tertiary ring-1 ring-border-primary flex-shrink-0">
