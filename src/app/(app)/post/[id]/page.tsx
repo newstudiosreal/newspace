@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import PostCard from '@/components/post/PostCard'
+import CommentForm from '@/components/post/CommentForm'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import type { Post } from '@/types/database'
@@ -35,7 +36,13 @@ export default async function PostPage({ params }: { params: { id: string } }) {
         </Link>
         <h1 className="font-display font-bold text-xl">Post</h1>
       </div>
+
       <PostCard post={post} currentUserId={user?.id} />
+
+      {user && (
+        <CommentForm postId={post.id} currentUserId={user.id} />
+      )}
+
       {comments.length > 0 && (
         <div className="border-t border-border-secondary">
           <h2 className="px-4 py-3 text-sm font-semibold text-text-muted">
