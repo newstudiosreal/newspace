@@ -21,5 +21,5 @@ export function createClient() {
         },
       },
     }
-  )
+  ) as any
 }
