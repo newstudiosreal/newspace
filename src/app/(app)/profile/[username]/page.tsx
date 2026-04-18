@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import PostCard from '@/components/post/PostCard'
 import FollowButton from '@/components/ui/FollowButton'
+import type { Post } from '@/types/database'
 
 export default async function ProfilePage({ params }: { params: { username: string } }) {
   const supabase = createClient()
@@ -20,12 +21,14 @@ export default async function ProfilePage({ params }: { params: { username: stri
 
   if (!profile) notFound()
 
-  const { data: posts } = await supabase
+  const { data: postsRaw } = await supabase
     .from('posts')
     .select('*, profiles(*)')
     .eq('user_id', profile.id)
     .order('created_at', { ascending: false })
     .limit(20)
+
+  const posts = (postsRaw as unknown as Post[]) || []
 
   const isOwn = user?.id === profile.id
 
@@ -101,13 +104,13 @@ export default async function ProfilePage({ params }: { params: { username: stri
       </div>
 
       {/* Posts */}
-      {posts?.length === 0 ? (
+      {posts.length === 0 ? (
         <div className="text-center py-16 text-text-muted">
           <p className="font-semibold text-text-secondary">Nessun post ancora</p>
           <p className="text-sm mt-1">I post appariranno qui</p>
         </div>
       ) : (
-        posts?.map(post => (
+        posts.map(post => (
           <PostCard key={post.id} post={post} currentUserId={user?.id} />
         ))
       )}
