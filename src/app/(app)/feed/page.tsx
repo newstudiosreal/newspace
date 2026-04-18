@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import FeedClient from './FeedClient'
+import type { Post } from '@/types/database'
 
 export default async function FeedPage() {
   const supabase = createClient()
@@ -13,7 +14,7 @@ export default async function FeedPage() {
     .eq('id', user.id)
     .single()
 
-  const { data: posts } = await supabase
+  const { data: postsRaw } = await supabase
     .from('posts')
     .select('*, profiles(*)')
     .order('created_at', { ascending: false })
@@ -36,7 +37,9 @@ export default async function FeedPage() {
     ((repostedRows ?? []) as { post_id: string }[]).map((r) => r.post_id)
   )
 
-  const enrichedPosts = (posts || []).map((p) => ({
+  const posts = (postsRaw ?? []) as Post[]
+
+  const enrichedPosts = posts.map((p) => ({
     ...p,
     liked: likedIds.has(p.id),
     reposted: repostedIds.has(p.id),
