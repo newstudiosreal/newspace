@@ -21,8 +21,7 @@ export default function AuthPage() {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
         if (error) throw error
-        router.push('/feed')
-        router.refresh()
+        window.location.href = '/feed'
       } else {
         const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password })
         if (error) throw error
@@ -35,8 +34,7 @@ export default function AuthPage() {
             avatar_url: `https://api.dicebear.com/7.x/shapes/svg?seed=${form.username}`,
           })
           toast.success('Account creato! Benvenuto su NeW Space')
-          router.push('/feed')
-          router.refresh()
+          window.location.href = '/feed'
         }
       }
     } catch (err: any) {
