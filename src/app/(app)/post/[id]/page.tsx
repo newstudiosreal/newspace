@@ -3,24 +3,29 @@ import { notFound } from 'next/navigation'
 import PostCard from '@/components/post/PostCard'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import type { Post } from '@/types/database'
 
 export default async function PostPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: post } = await supabase
+  const { data: postRaw } = await supabase
     .from('posts')
     .select('*, profiles(*)')
     .eq('id', params.id)
     .single()
 
-  if (!post) notFound()
+  if (!postRaw) notFound()
 
-  const { data: comments } = await supabase
+  const post = postRaw as unknown as Post
+
+  const { data: commentsRaw } = await supabase
     .from('posts')
     .select('*, profiles(*)')
     .eq('reply_to', params.id)
     .order('created_at', { ascending: true })
+
+  const comments = (commentsRaw as unknown as Post[]) || []
 
   return (
     <div>
@@ -30,10 +35,8 @@ export default async function PostPage({ params }: { params: { id: string } }) {
         </Link>
         <h1 className="font-display font-bold text-xl">Post</h1>
       </div>
-
       <PostCard post={post} currentUserId={user?.id} />
-
-      {comments && comments.length > 0 && (
+      {comments.length > 0 && (
         <div className="border-t border-border-secondary">
           <h2 className="px-4 py-3 text-sm font-semibold text-text-muted">
             {comments.length} {comments.length === 1 ? 'risposta' : 'risposte'}
