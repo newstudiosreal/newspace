@@ -1,8 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
-import { X } from 'lucide-react'
+import { X, Camera } from 'lucide-react'
+import Image from 'next/image'
 import type { Profile } from '@/types/database'
 
 interface EditProfileModalProps {
@@ -14,6 +15,10 @@ interface EditProfileModalProps {
 export default function EditProfileModal({ profile, onClose, onSave }: EditProfileModalProps) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || '')
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState(profile.avatar_url || '')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     display_name: profile.display_name || '',
     bio: profile.bio || '',
@@ -21,16 +26,41 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
     website: profile.website || '',
   })
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarFile(file)
+    setAvatarPreview(URL.createObjectURL(file))
+  }
+
   const handleSave = async () => {
     setLoading(true)
     try {
+      let newAvatarUrl = avatarUrl
+
+      if (avatarFile) {
+        const ext = avatarFile.name.split('.').pop()
+        const path = `${profile.id}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(path, avatarFile, { upsert: true })
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(path)
+        newAvatarUrl = publicUrl
+      }
+
+      const updates = { ...form, avatar_url: newAvatarUrl }
       const { error } = await supabase
         .from('profiles')
-        .update(form)
+        .update(updates)
         .eq('id', profile.id)
       if (error) throw error
+
       toast.success('Profilo aggiornato!')
-      onSave(form)
+      onSave(updates)
       onClose()
     } catch (err: any) {
       toast.error(err.message || 'Errore durante il salvataggio')
@@ -65,6 +95,35 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
 
         {/* Form */}
         <div className="px-5 py-5 space-y-4">
+
+          {/* Avatar */}
+          <div className="flex justify-center mb-2">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-bg-tertiary ring-4 ring-bg-primary">
+                {avatarPreview ? (
+                  <Image src={avatarPreview} alt="" width={80} height={80} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-accent-yellow/20 flex items-center justify-center text-accent-yellow text-2xl font-bold">
+                    {(profile.display_name || profile.username)[0].toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 w-7 h-7 bg-accent-yellow rounded-full flex items-center justify-center shadow-lg hover:bg-accent-yellow/80 transition-colors"
+              >
+                <Camera size={14} className="text-bg-primary" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+            </div>
+          </div>
+
           <div>
             <label className="text-xs text-text-muted mb-1.5 block">Nome visualizzato</label>
             <input
