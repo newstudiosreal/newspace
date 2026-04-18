@@ -18,6 +18,7 @@ export interface Database {
           following_count: number
           posts_count: number
           verified: boolean
+          username_changed_at: string | null
           created_at: string
           updated_at: string
         }
