@@ -16,6 +16,10 @@ interface FeedClientProps {
 
 type TabType = 'foryou' | 'following'
 
+type FollowRow = {
+  following_id: string
+}
+
 export default function FeedClient({
   initialPosts,
   profile,
@@ -33,11 +37,12 @@ export default function FeedClient({
 
     setLoadingFollowing(true)
 
-    const { data: follows } = await supabase
+    const { data: follows } = (await supabase
       .from('follows')
       .select('following_id')
-      .eq('follower_id', currentUserId)
-      .returns<{ following_id: string }[]>()
+      .eq('follower_id', currentUserId)) as {
+      data: FollowRow[] | null
+    }
 
     const followingIds = follows?.map((f) => f.following_id) || []
 
