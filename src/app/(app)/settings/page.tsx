@@ -16,12 +16,13 @@ export default function SettingsPage() {
       if (!user) return
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       if (data) {
-        setProfile(data)
+        const p = data as unknown as Profile
+        setProfile(p)
         setForm({
-          display_name: data.display_name || '',
-          bio: data.bio || '',
-          location: data.location || '',
-          website: data.website || '',
+          display_name: p.display_name || '',
+          bio: p.bio || '',
+          location: p.location || '',
+          website: p.website || '',
         })
       }
     })
@@ -30,7 +31,8 @@ export default function SettingsPage() {
   const save = async () => {
     if (!profile) return
     setLoading(true)
-    const { error } = await supabase.from('profiles').update(form).eq('id', profile.id)
+    const supabaseAny = supabase as any
+    const { error } = await supabaseAny.from('profiles').update(form).eq('id', profile.id)
     if (error) toast.error('Errore nel salvataggio')
     else toast.success('Profilo aggiornato!')
     setLoading(false)
