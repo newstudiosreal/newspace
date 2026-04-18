@@ -17,6 +17,7 @@ export default async function FeedPage() {
   const { data: postsRaw } = await supabase
     .from('posts')
     .select('*, profiles(*)')
+    .is('reply_to', null)
     .order('created_at', { ascending: false })
     .limit(30)
 
@@ -38,7 +39,6 @@ export default async function FeedPage() {
   )
 
   const posts = (postsRaw ?? []) as Post[]
-
   const enrichedPosts = posts.map((p) => ({
     ...p,
     liked: likedIds.has(p.id),
