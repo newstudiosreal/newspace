@@ -37,7 +37,7 @@ export default function MessagesClient({ conversations, currentUserId }: Message
       .select('*')
       .eq('conversation_id', selected.id)
       .order('created_at', { ascending: true })
-      .then(({ data }) => setMessages((data as Message[]) || []))
+      .then((result: any) => setMessages((result.data as Message[]) || []))
 
     const channel = supabase
       .channel(`messages:${selected.id}`)
@@ -46,8 +46,8 @@ export default function MessagesClient({ conversations, currentUserId }: Message
         schema: 'public',
         table: 'messages',
         filter: `conversation_id=eq.${selected.id}`,
-      }, payload => {
-        setMessages(prev => [...prev, payload.new as Message])
+      }, (payload: any) => {
+        setMessages((prev: Message[]) => [...prev, payload.new as Message])
       })
       .subscribe()
 
@@ -63,8 +63,7 @@ export default function MessagesClient({ conversations, currentUserId }: Message
     setSending(true)
     const content = newMessage.trim()
     setNewMessage('')
-    const supabaseAny = supabase as any
-    await supabaseAny.from('messages').insert({
+    await supabase.from('messages').insert({
       conversation_id: selected.id,
       sender_id: currentUserId,
       content,
