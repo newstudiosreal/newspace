@@ -30,7 +30,6 @@ export default function FeedClient({
 
   const loadFollowingFeed = async () => {
     if (followingPosts.length > 0) return
-
     setLoadingFollowing(true)
 
     const { data: follows } = await supabase
@@ -47,6 +46,7 @@ export default function FeedClient({
         .from('posts')
         .select('*, profiles(*)')
         .in('user_id', followingIds)
+        .is('reply_to', null)
         .order('created_at', { ascending: false })
         .limit(30)
 
@@ -74,7 +74,6 @@ export default function FeedClient({
       <div className="sticky top-0 z-10 bg-bg-primary/80 backdrop-blur-md border-b border-border-secondary">
         <div className="px-4 pt-4 pb-0">
           <h1 className="font-display font-bold text-xl mb-3">Home</h1>
-
           <div className="flex">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
@@ -103,6 +102,7 @@ export default function FeedClient({
             const { data } = await supabase
               .from('posts')
               .select('*, profiles(*)')
+              .is('reply_to', null)
               .order('created_at', { ascending: false })
               .limit(30)
 
@@ -129,33 +129,21 @@ export default function FeedClient({
           {tab === 'following' ? (
             <>
               <Users size={48} className="mb-4 opacity-30" />
-              <p className="font-semibold text-text-secondary">
-                Nessun post ancora
-              </p>
-              <p className="text-sm mt-1">
-                Segui altri utenti per vedere i loro post qui
-              </p>
+              <p className="font-semibold text-text-secondary">Nessun post ancora</p>
+              <p className="text-sm mt-1">Segui altri utenti per vedere i loro post qui</p>
             </>
           ) : (
             <>
               <Zap size={48} className="mb-4 opacity-30 text-accent-yellow" />
-              <p className="font-semibold text-text-secondary">
-                Il feed è vuoto
-              </p>
-              <p className="text-sm mt-1">
-                Sii il primo a pubblicare qualcosa!
-              </p>
+              <p className="font-semibold text-text-secondary">Il feed è vuoto</p>
+              <p className="text-sm mt-1">Sii il primo a pubblicare qualcosa!</p>
             </>
           )}
         </div>
       ) : (
         <div>
           {displayPosts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              currentUserId={currentUserId}
-            />
+            <PostCard key={post.id} post={post} currentUserId={currentUserId} />
           ))}
         </div>
       )}
