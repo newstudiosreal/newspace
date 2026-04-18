@@ -3,15 +3,19 @@ import { TrendingUp, Hash } from 'lucide-react'
 import { formatCount } from '@/lib/utils'
 import Link from 'next/link'
 import PostCard from '@/components/post/PostCard'
+import type { Post, Hashtag } from '@/types/database'
 
 export default async function TrendingPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: hashtags }, { data: viralPosts }] = await Promise.all([
+  const [{ data: hashtagsRaw }, { data: viralPostsRaw }] = await Promise.all([
     supabase.from('hashtags').select('*').order('posts_count', { ascending: false }).limit(20),
     supabase.from('posts').select('*, profiles(*)').order('likes_count', { ascending: false }).limit(10),
   ])
+
+  const hashtags = (hashtagsRaw as unknown as Hashtag[]) || []
+  const viralPosts = (viralPostsRaw as unknown as Post[]) || []
 
   return (
     <div>
@@ -26,7 +30,7 @@ export default async function TrendingPage() {
       <div className="border-b border-border-secondary">
         <h2 className="px-4 py-3 font-semibold text-text-secondary text-sm">Hashtag del momento</h2>
         <div className="grid grid-cols-2 gap-px bg-border-secondary">
-          {hashtags?.map((tag, i) => (
+          {hashtags.map((tag, i) => (
             <Link
               key={tag.id}
               href={`/explore?q=%23${tag.tag}`}
@@ -50,7 +54,7 @@ export default async function TrendingPage() {
       {/* Viral posts */}
       <div>
         <h2 className="px-4 py-3 font-semibold text-text-secondary text-sm">Post virali</h2>
-        {viralPosts?.map(post => (
+        {viralPosts.map(post => (
           <PostCard key={post.id} post={post} currentUserId={user?.id} />
         ))}
       </div>
