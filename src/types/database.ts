@@ -2,6 +2,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 
 export interface Database {
   public: {
+    PostgrestVersion: "12"
     Tables: {
       profiles: {
         Row: {
@@ -48,17 +49,17 @@ export interface Database {
       likes: {
         Row: { id: string; user_id: string; post_id: string; created_at: string }
         Insert: Omit<Database['public']['Tables']['likes']['Row'], 'id' | 'created_at'>
-        Update: never
+        Update: Partial<Pick<Database['public']['Tables']['likes']['Row'], 'user_id' | 'post_id'>>
       }
       reposts: {
         Row: { id: string; user_id: string; post_id: string; created_at: string }
         Insert: Omit<Database['public']['Tables']['reposts']['Row'], 'id' | 'created_at'>
-        Update: never
+        Update: Partial<Pick<Database['public']['Tables']['reposts']['Row'], 'user_id' | 'post_id'>>
       }
       follows: {
         Row: { id: string; follower_id: string; following_id: string; created_at: string }
         Insert: Omit<Database['public']['Tables']['follows']['Row'], 'id' | 'created_at'>
-        Update: never
+        Update: Partial<Pick<Database['public']['Tables']['follows']['Row'], 'follower_id' | 'following_id'>>
       }
       hashtags: {
         Row: { id: string; tag: string; posts_count: number; updated_at: string }
@@ -68,12 +69,12 @@ export interface Database {
       conversations: {
         Row: { id: string; created_at: string; updated_at: string }
         Insert: Omit<Database['public']['Tables']['conversations']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: never
+        Update: Partial<Pick<Database['public']['Tables']['conversations']['Row'], 'updated_at'>>
       }
       conversation_participants: {
         Row: { id: string; conversation_id: string; user_id: string; created_at: string }
         Insert: Omit<Database['public']['Tables']['conversation_participants']['Row'], 'id' | 'created_at'>
-        Update: never
+        Update: Partial<Pick<Database['public']['Tables']['conversation_participants']['Row'], 'user_id' | 'conversation_id'>>
       }
       messages: {
         Row: { id: string; conversation_id: string; sender_id: string; content: string; read: boolean; created_at: string }
