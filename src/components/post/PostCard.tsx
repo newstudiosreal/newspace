@@ -1,16 +1,22 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Heart, Repeat2, MessageCircle, Share, MoreHorizontal, Bookmark } from 'lucide-react'
+import { Heart, Repeat2, MessageCircle, Share, MoreHorizontal, Trash2, Flag, Link2, BadgeCheck } from 'lucide-react'
 import { formatDate, formatCount, renderPostContent, cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { Post } from '@/types/database'
 import toast from 'react-hot-toast'
+import { useRouter } from 'next/navigation'
 
 interface PostCardProps {
   post: Post
   currentUserId?: string
+}
+
+function avatarSrc(profile: Post['profiles']) {
+  if (!profile) return ''
+  return profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile.display_name || profile.username)}&backgroundColor=f5c518&textColor=0a0a0a`
 }
 
 export default function PostCard({ post, currentUserId }: PostCardProps) {
@@ -18,9 +24,23 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
   const [reposted, setReposted] = useState(post.reposted || false)
   const [likesCount, setLikesCount] = useState(post.likes_count)
   const [repostsCount, setRepostsCount] = useState(post.reposts_count)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [deleted, setDeleted] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
-
+  const router = useRouter()
   const profile = post.profiles
+  const isOwn = currentUserId === post.user_id
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleLike = async () => {
     if (!currentUserId) { toast.error('Accedi per mettere like'); return }
@@ -51,7 +71,25 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
     const url = `${window.location.origin}/post/${post.id}`
     await navigator.clipboard.writeText(url)
     toast.success('Link copiato!')
+    setMenuOpen(false)
   }
+
+  const handleDelete = async () => {
+    if (!confirm('Sei sicuro di voler eliminare questo post?')) return
+    const { error } = await supabase.from('posts').delete().eq('id', post.id)
+    if (error) { toast.error('Errore durante l\'eliminazione'); return }
+    toast.success('Post eliminato')
+    setDeleted(true)
+    setMenuOpen(false)
+    router.refresh()
+  }
+
+  const handleReport = () => {
+    toast.success('Post segnalato')
+    setMenuOpen(false)
+  }
+
+  if (deleted) return null
 
   return (
     <article className="border-b border-border-secondary hover:bg-bg-hover/30 transition-colors duration-150 px-4 py-4 animate-fade-in">
@@ -59,28 +97,59 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
         {/* Avatar */}
         <Link href={`/profile/${profile?.username}`} className="flex-shrink-0">
           <div className="w-10 h-10 rounded-full overflow-hidden bg-bg-tertiary ring-2 ring-border-secondary hover:ring-accent-yellow/40 transition-all">
-            {profile?.avatar_url ? (
-              <Image src={profile.avatar_url} alt={profile.display_name || ''} width={40} height={40} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-accent-yellow/20 flex items-center justify-center text-accent-yellow text-sm font-bold">
-                {(profile?.display_name || profile?.username || '?')[0].toUpperCase()}
-              </div>
-            )}
+            <Image src={avatarSrc(profile)} alt={profile?.display_name || ''} width={40} height={40} className="w-full h-full object-cover" />
           </div>
         </Link>
 
         <div className="flex-1 min-w-0">
           {/* Header */}
           <div className="flex items-center gap-2 mb-1">
-            <Link href={`/profile/${profile?.username}`} className="font-semibold text-sm hover:underline truncate">
+            <Link href={`/profile/${profile?.username}`} className="font-semibold text-sm hover:underline truncate flex items-center gap-1">
               {profile?.display_name}
+              {profile?.verified && <BadgeCheck size={14} className="text-accent-yellow flex-shrink-0" fill="currentColor" />}
             </Link>
             <span className="text-text-muted text-sm truncate">@{profile?.username}</span>
             <span className="text-text-muted text-sm">·</span>
             <span className="text-text-muted text-sm flex-shrink-0">{formatDate(post.created_at)}</span>
-            <button className="ml-auto text-text-muted hover:text-text-secondary p-1 rounded-lg hover:bg-bg-hover transition-colors">
-              <MoreHorizontal size={16} />
-            </button>
+
+            {/* Three dots menu */}
+            <div className="ml-auto relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(o => !o)}
+                className="text-text-muted hover:text-text-secondary p-1 rounded-lg hover:bg-bg-hover transition-colors"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 top-7 w-48 bg-bg-card border border-border-primary rounded-xl shadow-xl z-50 overflow-hidden">
+                  <button
+                    onClick={handleShare}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-primary hover:bg-bg-hover transition-colors"
+                  >
+                    <Link2 size={15} className="text-text-muted" />
+                    Copia link
+                  </button>
+                  {isOwn ? (
+                    <button
+                      onClick={handleDelete}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-bg-hover transition-colors"
+                    >
+                      <Trash2 size={15} />
+                      Elimina post
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReport}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-primary hover:bg-bg-hover transition-colors"
+                    >
+                      <Flag size={15} className="text-text-muted" />
+                      Segnala
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Repost label */}
@@ -128,10 +197,7 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
               <span>{formatCount(repostsCount)}</span>
             </button>
 
-            <button
-              onClick={handleLike}
-              className={cn('post-action-btn', liked && 'text-red-400')}
-            >
+            <button onClick={handleLike} className={cn('post-action-btn', liked && 'text-red-400')}>
               <Heart
                 size={17}
                 className={cn('transition-all duration-200', liked ? 'text-red-400 fill-red-400 scale-110' : 'group-hover:text-red-400')}
