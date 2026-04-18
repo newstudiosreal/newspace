@@ -1,162 +1,216 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { notFound, useParams } from 'next/navigation'
+import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import Image from 'next/image'
-import { formatCount } from '@/lib/utils'
-import { MapPin, Link as LinkIcon, Calendar, BadgeCheck } from 'lucide-react'
-import { format } from 'date-fns'
-import { it } from 'date-fns/locale'
-import PostCard from '@/components/post/PostCard'
-import FollowButton from '@/components/ui/FollowButton'
-import EditProfileModal from '@/components/ui/EditProfileModal'
-import type { Post, Profile } from '@/types/database'
+import { Heart, Repeat2, MessageCircle, Share, MoreHorizontal, Trash2, Flag, Link2, BadgeCheck } from 'lucide-react'
+import { formatDate, formatCount, renderPostContent, cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import type { Post } from '@/types/database'
+import toast from 'react-hot-toast'
+import { useRouter } from 'next/navigation'
 
-function avatarSrc(profile: Profile) {
+interface PostCardProps {
+  post: Post
+  currentUserId?: string
+}
+
+function avatarSrc(profile: Post['profiles']) {
+  if (!profile) return ''
   return profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile.display_name || profile.username)}&backgroundColor=f5c518&textColor=0a0a0a`
 }
 
-export default function ProfilePage() {
-  const params = useParams()
-  const username = params.username as string
+export default function PostCard({ post, currentUserId }: PostCardProps) {
+  const [liked, setLiked] = useState(post.liked || false)
+  const [reposted, setReposted] = useState(post.reposted || false)
+  const [likesCount, setLikesCount] = useState(post.likes_count)
+  const [repostsCount, setRepostsCount] = useState(post.reposts_count)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [deleted, setDeleted] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
-
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [showModal, setShowModal] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const profile = post.profiles
+  const isOwn = currentUserId === post.user_id
 
   useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', username)
-        .single()
-
-      if (!profileData) { setLoading(false); return }
-      setProfile(profileData as unknown as Profile)
-
-      const { data: postsData } = await supabase
-        .from('posts')
-        .select('*, profiles(*)')
-        .eq('user_id', profileData.id)
-        .order('created_at', { ascending: false })
-        .limit(20)
-
-      setPosts((postsData as unknown as Post[]) || [])
-      setLoading(false)
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
     }
-    load()
-  }, [username])
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-24 text-text-muted text-sm">
-      Caricamento...
-    </div>
-  )
+  const handleLike = async () => {
+    if (!currentUserId) { toast.error('Accedi per mettere like'); return }
+    const newLiked = !liked
+    setLiked(newLiked)
+    setLikesCount(c => c + (newLiked ? 1 : -1))
+    if (newLiked) {
+      await supabase.from('likes').insert({ user_id: currentUserId, post_id: post.id })
+    } else {
+      await supabase.from('likes').delete().match({ user_id: currentUserId, post_id: post.id })
+    }
+  }
 
-  if (!profile) return notFound()
+  const handleRepost = async () => {
+    if (!currentUserId) { toast.error('Accedi per repostare'); return }
+    const newReposted = !reposted
+    setReposted(newReposted)
+    setRepostsCount(c => c + (newReposted ? 1 : -1))
+    if (newReposted) {
+      await supabase.from('reposts').insert({ user_id: currentUserId, post_id: post.id })
+      toast.success('Repostato!')
+    } else {
+      await supabase.from('reposts').delete().match({ user_id: currentUserId, post_id: post.id })
+    }
+  }
 
-  const isOwn = user?.id === profile.id
+  const handleShare = async () => {
+    const url = `${window.location.origin}/post/${post.id}`
+    await navigator.clipboard.writeText(url)
+    toast.success('Link copiato!')
+    setMenuOpen(false)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Sei sicuro di voler eliminare questo post?')) return
+    const { error } = await supabase.from('posts').delete().eq('id', post.id)
+    if (error) { toast.error('Errore durante l\'eliminazione'); return }
+    toast.success('Post eliminato')
+    setDeleted(true)
+    setMenuOpen(false)
+    router.refresh()
+  }
+
+  const handleReport = () => {
+    toast.success('Post segnalato')
+    setMenuOpen(false)
+  }
+
+  if (deleted) return null
 
   return (
-    <div>
-      {/* Modal */}
-      {showModal && (
-        <EditProfileModal
-          profile={profile}
-          onClose={() => setShowModal(false)}
-          onSave={(updated) => setProfile(p => p ? { ...p, ...updated } : p)}
-        />
-      )}
-
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-bg-primary/80 backdrop-blur-md border-b border-border-secondary px-4 py-3">
-        <h1 className="font-display font-bold text-lg flex items-center gap-1.5">
-          {profile.display_name}
-          {profile.verified && <BadgeCheck size={18} className="text-accent-yellow" fill="currentColor" />}
-        </h1>
-        <p className="text-text-muted text-sm">{formatCount(profile.posts_count)} post</p>
-      </div>
-
-      {/* Banner */}
-      <div className="relative h-36 bg-gradient-to-br from-accent-yellow/20 to-bg-tertiary">
-        {profile.banner_url && (
-          <Image src={profile.banner_url} alt="" fill className="object-cover" />
-        )}
-      </div>
-
-      {/* Profile info */}
-      <div className="px-4 pb-4">
-        <div className="flex items-end justify-between -mt-8 mb-4">
-          <div className="w-20 h-20 rounded-full overflow-hidden bg-bg-tertiary ring-4 ring-bg-primary">
-            <Image src={avatarSrc(profile)} alt="" width={80} height={80} className="w-full h-full object-cover" />
+    <article className="border-b border-border-secondary hover:bg-bg-hover/30 transition-colors duration-150 px-4 py-4 animate-fade-in">
+      <div className="flex gap-3">
+        {/* Avatar */}
+        <Link href={`/profile/${profile?.username}`} className="flex-shrink-0">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-bg-tertiary ring-2 ring-border-secondary hover:ring-accent-yellow/40 transition-all">
+            <Image src={avatarSrc(profile)} alt={profile?.display_name || ''} width={40} height={40} className="w-full h-full object-cover" />
           </div>
-          {isOwn ? (
-            <button onClick={() => setShowModal(true)} className="btn-outline">
-              Modifica profilo
+        </Link>
+
+        <div className="flex-1 min-w-0">
+          {/* Header */}
+          <div className="flex items-center gap-2 mb-1">
+            <Link href={`/profile/${profile?.username}`} className="font-semibold text-sm hover:underline truncate flex items-center gap-1">
+              {profile?.display_name}
+              {profile?.verified && <BadgeCheck size={14} className="text-accent-yellow flex-shrink-0" fill="currentColor" />}
+            </Link>
+            <span className="text-text-muted text-sm truncate">@{profile?.username}</span>
+            <span className="text-text-muted text-sm">·</span>
+            <span className="text-text-muted text-sm flex-shrink-0">{formatDate(post.created_at)}</span>
+
+            {/* Three dots menu */}
+            <div className="ml-auto relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(o => !o)}
+                className="text-text-muted hover:text-text-secondary p-1 rounded-lg hover:bg-bg-hover transition-colors"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 top-7 w-48 bg-bg-card border border-border-primary rounded-xl shadow-xl z-50 overflow-hidden">
+                  <button
+                    onClick={handleShare}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-primary hover:bg-bg-hover transition-colors"
+                  >
+                    <Link2 size={15} className="text-text-muted" />
+                    Copia link
+                  </button>
+                  {isOwn ? (
+                    <button
+                      onClick={handleDelete}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-bg-hover transition-colors"
+                    >
+                      <Trash2 size={15} />
+                      Elimina post
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReport}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-primary hover:bg-bg-hover transition-colors"
+                    >
+                      <Flag size={15} className="text-text-muted" />
+                      Segnala
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Repost label */}
+          {post.is_repost && (
+            <div className="flex items-center gap-1 text-text-muted text-xs mb-1">
+              <Repeat2 size={12} /> <span>Repostato</span>
+            </div>
+          )}
+
+          {/* Content */}
+          <div
+            className="text-[15px] text-text-primary leading-relaxed mb-3 post-content"
+            dangerouslySetInnerHTML={{ __html: renderPostContent(post.content) }}
+          />
+
+          {/* Media */}
+          {post.media_urls && post.media_urls.length > 0 && (
+            <div className={cn(
+              'grid gap-1.5 mb-3 rounded-2xl overflow-hidden',
+              post.media_urls.length === 1 ? 'grid-cols-1' :
+              post.media_urls.length === 2 ? 'grid-cols-2' :
+              post.media_urls.length >= 3 ? 'grid-cols-2' : ''
+            )}>
+              {post.media_urls.map((url, i) => (
+                <div key={i} className={cn('relative bg-bg-tertiary', post.media_urls!.length === 1 ? 'aspect-video' : 'aspect-square')}>
+                  {post.media_types?.[i]?.startsWith('video') ? (
+                    <video src={url} controls className="w-full h-full object-cover" />
+                  ) : (
+                    <Image src={url} alt="" fill className="object-cover" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 -ml-2">
+            <Link href={`/post/${post.id}`} className="post-action-btn">
+              <MessageCircle size={17} className="group-hover:text-blue-400 transition-colors" />
+              <span>{formatCount(post.comments_count)}</span>
+            </Link>
+
+            <button onClick={handleRepost} className={cn('post-action-btn', reposted && 'text-green-400')}>
+              <Repeat2 size={17} className={cn('transition-colors', reposted ? 'text-green-400' : 'group-hover:text-green-400')} />
+              <span>{formatCount(repostsCount)}</span>
             </button>
-          ) : user ? (
-            <FollowButton targetUserId={profile.id} currentUserId={user.id} />
-          ) : null}
-        </div>
 
-        <h2 className="font-display font-bold text-xl flex items-center gap-1.5">
-          {profile.display_name}
-          {profile.verified && <BadgeCheck size={20} className="text-accent-yellow" fill="currentColor" />}
-        </h2>
-        <p className="text-text-muted text-sm">@{profile.username}</p>
+            <button onClick={handleLike} className={cn('post-action-btn', liked && 'text-red-400')}>
+              <Heart
+                size={17}
+                className={cn('transition-all duration-200', liked ? 'text-red-400 fill-red-400 scale-110' : 'group-hover:text-red-400')}
+              />
+              <span>{formatCount(likesCount)}</span>
+            </button>
 
-        {profile.bio && (
-          <p className="mt-3 text-[15px] text-text-primary leading-relaxed">{profile.bio}</p>
-        )}
-
-        <div className="flex flex-wrap gap-4 mt-3 text-text-muted text-sm">
-          {profile.location && (
-            <span className="flex items-center gap-1"><MapPin size={14} />{profile.location}</span>
-          )}
-          {profile.website && (
-            <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent-yellow hover:underline">
-              <LinkIcon size={14} />{profile.website.replace(/https?:\/\//, '')}
-            </a>
-          )}
-          <span className="flex items-center gap-1">
-            <Calendar size={14} />
-            Iscritto il {format(new Date(profile.created_at), 'MMMM yyyy', { locale: it })}
-          </span>
-        </div>
-
-        <div className="flex gap-6 mt-4 text-sm">
-          <span><strong className="text-text-primary">{formatCount(profile.following_count)}</strong> <span className="text-text-muted">seguiti</span></span>
-          <span><strong className="text-text-primary">{formatCount(profile.followers_count)}</strong> <span className="text-text-muted">follower</span></span>
+            <button onClick={handleShare} className="post-action-btn ml-auto">
+              <Share size={17} className="group-hover:text-accent-yellow transition-colors" />
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Tabs */}
-      <div className="border-b border-border-secondary">
-        <div className="flex">
-          <button className="flex-1 py-3 text-sm font-medium border-b-2 border-accent-yellow text-accent-yellow">Post</button>
-          <button className="flex-1 py-3 text-sm font-medium text-text-muted hover:text-text-secondary">Risposte</button>
-          <button className="flex-1 py-3 text-sm font-medium text-text-muted hover:text-text-secondary">Mi piace</button>
-        </div>
-      </div>
-
-      {/* Posts */}
-      {posts.length === 0 ? (
-        <div className="text-center py-16 text-text-muted">
-          <p className="font-semibold text-text-secondary">Nessun post ancora</p>
-          <p className="text-sm mt-1">I post appariranno qui</p>
-        </div>
-      ) : (
-        posts.map(post => (
-          <PostCard key={post.id} post={post} currentUserId={user?.id} />
-        ))
-      )}
-    </div>
+    </article>
   )
 }
