@@ -62,11 +62,7 @@ export default function FeedClient({
 
   const displayPosts = tab === 'foryou' ? posts : followingPosts
 
-  const tabs: {
-    key: TabType
-    label: string
-    icon: any
-  }[] = [
+  const tabs: { key: TabType; label: string; icon: any }[] = [
     { key: 'foryou', label: 'Per te', icon: Zap },
     { key: 'following', label: 'Seguiti', icon: Users },
   ]
