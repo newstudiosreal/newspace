@@ -38,7 +38,9 @@ export default function FeedClient({
       .select('following_id')
       .eq('follower_id', currentUserId)
 
-    const followingIds = (follows ?? []).map((f) => f.following_id)
+    const followingIds = ((follows ?? []) as { following_id: string }[]).map(
+      (f) => f.following_id
+    )
 
     if (followingIds.length > 0) {
       const { data } = await supabase
