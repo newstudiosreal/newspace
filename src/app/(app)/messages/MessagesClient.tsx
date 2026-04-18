@@ -31,15 +31,14 @@ export default function MessagesClient({ conversations, currentUserId }: Message
 
   useEffect(() => {
     if (!selected) return
-    // Load messages
+
     supabase
       .from('messages')
       .select('*')
       .eq('conversation_id', selected.id)
       .order('created_at', { ascending: true })
-      .then(({ data }) => setMessages(data || []))
+      .then(({ data }) => setMessages((data as Message[]) || []))
 
-    // Real-time subscription
     const channel = supabase
       .channel(`messages:${selected.id}`)
       .on('postgres_changes', {
@@ -64,7 +63,8 @@ export default function MessagesClient({ conversations, currentUserId }: Message
     setSending(true)
     const content = newMessage.trim()
     setNewMessage('')
-    await supabase.from('messages').insert({
+    const supabaseAny = supabase as any
+    await supabaseAny.from('messages').insert({
       conversation_id: selected.id,
       sender_id: currentUserId,
       content,
