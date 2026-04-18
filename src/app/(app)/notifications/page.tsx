@@ -34,7 +34,8 @@ export default async function NotificationsPage() {
     .limit(50)
 
   // Mark as read
-  await supabase
+  const supabaseAny = supabase as any
+  await supabaseAny
     .from('notifications')
     .update({ read: true })
     .eq('user_id', user.id)
@@ -48,7 +49,6 @@ export default async function NotificationsPage() {
           <h1 className="font-display font-bold text-xl">Notifiche</h1>
         </div>
       </div>
-
       {!notifications || notifications.length === 0 ? (
         <div className="text-center py-20 text-text-muted">
           <Bell size={48} className="mx-auto mb-4 opacity-20" />
