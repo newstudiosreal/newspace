@@ -12,14 +12,32 @@ interface EditProfileModalProps {
   onSave: (updated: Partial<Profile>) => void
 }
 
+const COOLDOWN_DAYS = 30
+
+function getDaysUntilUsernameChange(username_changed_at: string | null): number {
+  if (!username_changed_at) return 0
+  const last = new Date(username_changed_at).getTime()
+  const now = Date.now()
+  const diff = COOLDOWN_DAYS - Math.floor((now - last) / (1000 * 60 * 60 * 24))
+  return Math.max(diff, 0)
+}
+
+function getAvatarFallback(profile: Profile): string {
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile.display_name || profile.username)}&backgroundColor=f5c518&textColor=0a0a0a`
+}
+
 export default function EditProfileModal({ profile, onClose, onSave }: EditProfileModalProps) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || '')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState(profile.avatar_url || '')
+  const [avatarPreview, setAvatarPreview] = useState(profile.avatar_url || getAvatarFallback(profile))
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const daysLeft = getDaysUntilUsernameChange(profile.username_changed_at)
+  const canChangeUsername = daysLeft === 0
+
   const [form, setForm] = useState({
+    username: profile.username || '',
     display_name: profile.display_name || '',
     bio: profile.bio || '',
     location: profile.location || '',
@@ -36,7 +54,7 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
   const handleSave = async () => {
     setLoading(true)
     try {
-      let newAvatarUrl = avatarUrl
+      let newAvatarUrl = profile.avatar_url
 
       if (avatarFile) {
         const ext = avatarFile.name.split('.').pop()
@@ -45,18 +63,24 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
           .from('avatars')
           .upload(path, avatarFile, { upsert: true })
         if (uploadError) throw uploadError
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(path)
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
         newAvatarUrl = publicUrl
       }
 
-      const updates = { ...form, avatar_url: newAvatarUrl }
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', profile.id)
+      const usernameChanged = form.username !== profile.username
+      if (usernameChanged && !canChangeUsername) {
+        toast.error(`Puoi cambiare username tra ${daysLeft} giorni`)
+        setLoading(false)
+        return
+      }
+
+      const updates: Partial<Profile> = {
+        ...form,
+        avatar_url: newAvatarUrl || getAvatarFallback(profile),
+        ...(usernameChanged ? { username_changed_at: new Date().toISOString() } : {}),
+      }
+
+      const { error } = await supabase.from('profiles').update(updates).eq('id', profile.id)
       if (error) throw error
 
       toast.success('Profilo aggiornato!')
@@ -71,13 +95,11 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-md bg-bg-card border border-border-primary rounded-2xl shadow-xl z-10">
+      <div className="relative w-full max-w-md bg-bg-card border border-border-primary rounded-2xl shadow-xl z-10 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border-secondary">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-secondary sticky top-0 bg-bg-card z-10">
           <h2 className="font-display font-bold text-lg">Modifica profilo</h2>
           <div className="flex items-center gap-3">
             <button
@@ -100,13 +122,7 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
           <div className="flex justify-center mb-2">
             <div className="relative">
               <div className="w-20 h-20 rounded-full overflow-hidden bg-bg-tertiary ring-4 ring-bg-primary">
-                {avatarPreview ? (
-                  <Image src={avatarPreview} alt="" width={80} height={80} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-accent-yellow/20 flex items-center justify-center text-accent-yellow text-2xl font-bold">
-                    {(profile.display_name || profile.username)[0].toUpperCase()}
-                  </div>
-                )}
+                <Image src={avatarPreview} alt="" width={80} height={80} className="w-full h-full object-cover" />
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -124,6 +140,24 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
             </div>
           </div>
 
+          {/* Username */}
+          <div>
+            <label className="text-xs text-text-muted mb-1.5 block">Username</label>
+            <input
+              className="input w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              placeholder="il_tuo_username"
+              value={form.username}
+              disabled={!canChangeUsername}
+              onChange={e => setForm(f => ({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+            />
+            {!canChangeUsername && (
+              <p className="text-xs text-text-muted mt-1">
+                ⏳ Puoi cambiare username tra <strong className="text-accent-yellow">{daysLeft} giorni</strong>
+              </p>
+            )}
+          </div>
+
+          {/* Display name */}
           <div>
             <label className="text-xs text-text-muted mb-1.5 block">Nome visualizzato</label>
             <input
@@ -133,6 +167,8 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
               onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
             />
           </div>
+
+          {/* Bio */}
           <div>
             <label className="text-xs text-text-muted mb-1.5 block">Bio</label>
             <textarea
@@ -145,6 +181,8 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
             />
             <p className="text-xs text-text-muted mt-1 text-right">{form.bio.length}/160</p>
           </div>
+
+          {/* Location */}
           <div>
             <label className="text-xs text-text-muted mb-1.5 block">Posizione</label>
             <input
@@ -154,6 +192,8 @@ export default function EditProfileModal({ profile, onClose, onSave }: EditProfi
               onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
             />
           </div>
+
+          {/* Website */}
           <div>
             <label className="text-xs text-text-muted mb-1.5 block">Sito web</label>
             <input
