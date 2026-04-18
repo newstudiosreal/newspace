@@ -1,5 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+'use client'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { notFound, useParams } from 'next/navigation'
 import Image from 'next/image'
 import { formatCount } from '@/lib/utils'
 import { MapPin, Link as LinkIcon, Calendar } from 'lucide-react'
@@ -7,35 +9,68 @@ import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import PostCard from '@/components/post/PostCard'
 import FollowButton from '@/components/ui/FollowButton'
+import EditProfileModal from '@/components/ui/EditProfileModal'
 import type { Post, Profile } from '@/types/database'
 
-export default async function ProfilePage({ params }: { params: { username: string } }) {
+export default function ProfilePage() {
+  const params = useParams()
+  const username = params.username as string
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profileRaw } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('username', params.username)
-    .single()
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [posts, setPosts] = useState<Post[]>([])
+  const [showModal, setShowModal] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  if (!profileRaw) notFound()
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
 
-  const profile = profileRaw as unknown as Profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .single()
 
-  const { data: postsRaw } = await supabase
-    .from('posts')
-    .select('*, profiles(*)')
-    .eq('user_id', profile.id)
-    .order('created_at', { ascending: false })
-    .limit(20)
+      if (!profileData) { setLoading(false); return }
+      setProfile(profileData as unknown as Profile)
 
-  const posts = (postsRaw as unknown as Post[]) || []
+      const { data: postsData } = await supabase
+        .from('posts')
+        .select('*, profiles(*)')
+        .eq('user_id', profileData.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      setPosts((postsData as unknown as Post[]) || [])
+      setLoading(false)
+    }
+    load()
+  }, [username])
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-24 text-text-muted text-sm">
+      Caricamento...
+    </div>
+  )
+
+  if (!profile) return notFound()
 
   const isOwn = user?.id === profile.id
 
   return (
     <div>
+      {/* Modal */}
+      {showModal && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setShowModal(false)}
+          onSave={(updated) => setProfile(p => p ? { ...p, ...updated } : p)}
+        />
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-10 bg-bg-primary/80 backdrop-blur-md border-b border-border-secondary px-4 py-3">
         <h1 className="font-display font-bold text-lg">{profile.display_name}</h1>
@@ -62,7 +97,9 @@ export default async function ProfilePage({ params }: { params: { username: stri
             )}
           </div>
           {isOwn ? (
-            <button className="btn-outline">Modifica profilo</button>
+            <button onClick={() => setShowModal(true)} className="btn-outline">
+              Modifica profilo
+            </button>
           ) : user ? (
             <FollowButton targetUserId={profile.id} currentUserId={user.id} />
           ) : null}
@@ -96,7 +133,7 @@ export default async function ProfilePage({ params }: { params: { username: stri
         </div>
       </div>
 
-      {/* Tabs placeholder */}
+      {/* Tabs */}
       <div className="border-b border-border-secondary">
         <div className="flex">
           <button className="flex-1 py-3 text-sm font-medium border-b-2 border-accent-yellow text-accent-yellow">Post</button>
