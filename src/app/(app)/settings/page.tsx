@@ -12,11 +12,12 @@ export default function SettingsPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getUser().then(async (result: any) => {
+      const user = result?.data?.user
       if (!user) return
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       if (data) {
-        const p = data as unknown as Profile
+        const p = data as Profile
         setProfile(p)
         setForm({
           display_name: p.display_name || '',
@@ -31,8 +32,7 @@ export default function SettingsPage() {
   const save = async () => {
     if (!profile) return
     setLoading(true)
-    const supabaseAny = supabase as any
-    const { error } = await supabaseAny.from('profiles').update(form).eq('id', profile.id)
+    const { error } = await supabase.from('profiles').update(form).eq('id', profile.id)
     if (error) toast.error('Errore nel salvataggio')
     else toast.success('Profilo aggiornato!')
     setLoading(false)
