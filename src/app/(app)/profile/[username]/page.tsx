@@ -4,13 +4,17 @@ import { createClient } from '@/lib/supabase/client'
 import { notFound, useParams } from 'next/navigation'
 import Image from 'next/image'
 import { formatCount } from '@/lib/utils'
-import { MapPin, Link as LinkIcon, Calendar } from 'lucide-react'
+import { MapPin, Link as LinkIcon, Calendar, BadgeCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import PostCard from '@/components/post/PostCard'
 import FollowButton from '@/components/ui/FollowButton'
 import EditProfileModal from '@/components/ui/EditProfileModal'
 import type { Post, Profile } from '@/types/database'
+
+function avatarSrc(profile: Profile) {
+  return profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile.display_name || profile.username)}&backgroundColor=f5c518&textColor=0a0a0a`
+}
 
 export default function ProfilePage() {
   const params = useParams()
@@ -73,7 +77,10 @@ export default function ProfilePage() {
 
       {/* Header */}
       <div className="sticky top-0 z-10 bg-bg-primary/80 backdrop-blur-md border-b border-border-secondary px-4 py-3">
-        <h1 className="font-display font-bold text-lg">{profile.display_name}</h1>
+        <h1 className="font-display font-bold text-lg flex items-center gap-1.5">
+          {profile.display_name}
+          {profile.verified && <BadgeCheck size={18} className="text-accent-yellow" fill="currentColor" />}
+        </h1>
         <p className="text-text-muted text-sm">{formatCount(profile.posts_count)} post</p>
       </div>
 
@@ -88,13 +95,7 @@ export default function ProfilePage() {
       <div className="px-4 pb-4">
         <div className="flex items-end justify-between -mt-8 mb-4">
           <div className="w-20 h-20 rounded-full overflow-hidden bg-bg-tertiary ring-4 ring-bg-primary">
-            {profile.avatar_url ? (
-              <Image src={profile.avatar_url} alt="" width={80} height={80} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-accent-yellow/20 flex items-center justify-center text-accent-yellow text-2xl font-bold">
-                {(profile.display_name || profile.username)[0].toUpperCase()}
-              </div>
-            )}
+            <Image src={avatarSrc(profile)} alt="" width={80} height={80} className="w-full h-full object-cover" />
           </div>
           {isOwn ? (
             <button onClick={() => setShowModal(true)} className="btn-outline">
@@ -105,7 +106,10 @@ export default function ProfilePage() {
           ) : null}
         </div>
 
-        <h2 className="font-display font-bold text-xl">{profile.display_name}</h2>
+        <h2 className="font-display font-bold text-xl flex items-center gap-1.5">
+          {profile.display_name}
+          {profile.verified && <BadgeCheck size={20} className="text-accent-yellow" fill="currentColor" />}
+        </h2>
         <p className="text-text-muted text-sm">@{profile.username}</p>
 
         {profile.bio && (
