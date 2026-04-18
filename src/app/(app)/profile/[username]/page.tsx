@@ -7,19 +7,21 @@ import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import PostCard from '@/components/post/PostCard'
 import FollowButton from '@/components/ui/FollowButton'
-import type { Post } from '@/types/database'
+import type { Post, Profile } from '@/types/database'
 
 export default async function ProfilePage({ params }: { params: { username: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
+  const { data: profileRaw } = await supabase
     .from('profiles')
     .select('*')
     .eq('username', params.username)
     .single()
 
-  if (!profile) notFound()
+  if (!profileRaw) notFound()
+
+  const profile = profileRaw as unknown as Profile
 
   const { data: postsRaw } = await supabase
     .from('posts')
