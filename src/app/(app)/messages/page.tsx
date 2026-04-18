@@ -7,13 +7,14 @@ export default async function MessagesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 
-  // Get conversations with participants
   const { data: participations } = await supabase
     .from('conversation_participants')
     .select('conversation_id')
     .eq('user_id', user.id)
 
-  const convIds = participations?.map(p => p.conversation_id) || []
+  const convIds = ((participations ?? []) as { conversation_id: string }[]).map(
+    (p) => p.conversation_id
+  )
 
   let conversations: any[] = []
   if (convIds.length > 0) {
@@ -27,7 +28,7 @@ export default async function MessagesPage() {
       `)
       .in('id', convIds)
       .order('updated_at', { ascending: false })
-    conversations = data || []
+    conversations = (data as any[]) || []
   }
 
   return <MessagesClient conversations={conversations} currentUserId={user.id} />
