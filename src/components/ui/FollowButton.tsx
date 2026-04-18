@@ -21,7 +21,7 @@ export default function FollowButton({ targetUserId, currentUserId, compact }: F
       .select('id')
       .match({ follower_id: currentUserId, following_id: targetUserId })
       .single()
-      .then(({ data }) => setFollowing(!!data))
+      .then(({ data }: { data: { id: string } | null }) => setFollowing(!!data))
   }, [currentUserId, targetUserId])
 
   const toggle = async () => {
