@@ -25,7 +25,8 @@ export default function AuthPage() {
         const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password })
         if (error) throw error
         if (data.user) {
-          await supabase.from('profiles').insert({
+          const supabaseAny = supabase as any
+          await supabaseAny.from('profiles').insert({
             id: data.user.id,
             username: form.username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
             display_name: form.display_name || form.username,
